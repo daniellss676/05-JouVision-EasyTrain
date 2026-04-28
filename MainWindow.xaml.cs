@@ -34,6 +34,9 @@ public partial class MainWindow : Window
         }
 
         VideoPathTextBox.Text = dialog.FileName;
+        OutputFolderTextBox.Clear();
+        _lastOutputFolder = null;
+        OpenOutputButton.IsEnabled = false;
         _sourceFramesPerSecond = null;
         SourceFrameRateTextBlock.Text = "读取中...";
 
@@ -50,12 +53,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(OutputFolderTextBox.Text))
-        {
-            var videoFolder = Path.GetDirectoryName(dialog.FileName);
-            var videoName = Path.GetFileNameWithoutExtension(dialog.FileName);
-            OutputFolderTextBox.Text = Path.Combine(videoFolder ?? string.Empty, $"{videoName}_frames");
-        }
+        var videoFolder = Path.GetDirectoryName(dialog.FileName);
+        var videoName = Path.GetFileNameWithoutExtension(dialog.FileName);
+        OutputFolderTextBox.Text = Path.Combine(videoFolder ?? string.Empty, $"{videoName}_frames");
 
         StatusTextBlock.Text = "已选择视频，可以设置 FPS 后开始生成。";
     }

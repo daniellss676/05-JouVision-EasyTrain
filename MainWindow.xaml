@@ -10,6 +10,7 @@
         MinHeight="520"
         MinWidth="760"
         WindowStartupLocation="CenterScreen"
+        Icon="LOGO.png"
         Background="#F5F7FA">
     <Window.Resources>
         <Style TargetType="TextBlock">
@@ -43,7 +44,13 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,22">
+        <StackPanel Grid.Row="0" Margin="0,0,0,22" Orientation="Horizontal">
+            <Image Source="LOGO.png"
+                   Width="64"
+                   Height="64"
+                   Stretch="Uniform"
+                   Margin="0,0,18,0" />
+            <StackPanel VerticalAlignment="Center">
             <TextBlock Text="视频拆分"
                        FontSize="28"
                        FontWeight="SemiBold"
@@ -51,6 +58,7 @@
             <TextBlock Text="选择视频和目标帧率，将视频按固定 FPS 导出为训练图片。"
                        Margin="0,8,0,0"
                        Foreground="#64748B" />
+            </StackPanel>
         </StackPanel>
 
         <Border Grid.Row="1"
