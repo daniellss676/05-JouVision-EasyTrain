@@ -31,8 +31,9 @@ target FPS for training image datasets.
 ## Video Playback Feature
 
 The main window includes a right-side video preview player.
-The current layout places export settings above the player and gives the video
-preview area the full content width for easier seeking.
+The current layout follows a card-based structure: source/output settings and
+progress cards on the left, preview and range selection on the right, and a
+bottom action bar for output information and commands.
 
 Supported controls:
 

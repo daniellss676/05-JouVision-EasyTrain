@@ -263,7 +263,7 @@ public partial class MainWindow : System.Windows.Window
         ImageFormatComboBox.IsEnabled = !isRunning;
         SetPlaybackControlsEnabled(!isRunning && _isVideoLoaded);
 
-        StartButton.Content = isRunning ? "生成中..." : "开始生成";
+        StartButton.Content = isRunning ? "生成中..." : "▶  开始生成";
     }
 
     private void LoadVideoForPlayback(string videoPath)
@@ -424,6 +424,11 @@ public partial class MainWindow : System.Windows.Window
         UpdateSegmentMarkers();
     }
 
+    private void SegmentRangeCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateSegmentMarkers();
+    }
+
     private void VideoPositionSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         _isPlaybackSeeking = true;
@@ -441,6 +446,7 @@ public partial class MainWindow : System.Windows.Window
         if (_isPlaybackSeeking)
         {
             VideoTimeTextBlock.Text = $"{FormatDuration(TimeSpan.FromSeconds(VideoPositionSlider.Value))} / {GetPlaybackDurationText()}";
+            UpdatePlaybackProgressMarker();
         }
     }
 
@@ -485,6 +491,7 @@ public partial class MainWindow : System.Windows.Window
         var currentTime = GetCurrentPlaybackTime();
         VideoPositionSlider.Value = Math.Min(currentTime.TotalSeconds, VideoPositionSlider.Maximum);
         VideoTimeTextBlock.Text = $"{FormatDuration(currentTime)} / {GetPlaybackDurationText()}";
+        UpdatePlaybackProgressMarker();
     }
 
     private string GetPlaybackDurationText()
@@ -517,13 +524,16 @@ public partial class MainWindow : System.Windows.Window
 
     private void UpdateSegmentMarkers()
     {
+        UpdateTimelineBase();
+        UpdatePlaybackProgressMarker();
         SetSegmentMarker(SegmentStartMarkerDot, _segmentStartTime);
         SetSegmentMarker(SegmentEndMarkerDot, _segmentEndTime);
+        UpdateSegmentRangeLine();
     }
 
     private void SetSegmentMarker(FrameworkElement marker, TimeSpan? markerTime)
     {
-        if (!markerTime.HasValue || VideoPositionSlider.Maximum <= 0 || SegmentMarkerCanvas.ActualWidth <= 0)
+        if (!markerTime.HasValue || VideoPositionSlider.Maximum <= 0 || SegmentRangeCanvas.ActualWidth <= 0)
         {
             marker.Visibility = Visibility.Collapsed;
             return;
@@ -532,11 +542,78 @@ public partial class MainWindow : System.Windows.Window
         var markerSeconds = Math.Clamp(markerTime.Value.TotalSeconds, VideoPositionSlider.Minimum, VideoPositionSlider.Maximum);
         var range = VideoPositionSlider.Maximum - VideoPositionSlider.Minimum;
         var ratio = range > 0 ? (markerSeconds - VideoPositionSlider.Minimum) / range : 0;
-        var markerX = ratio * SegmentMarkerCanvas.ActualWidth;
+        var markerX = ratio * SegmentRangeCanvas.ActualWidth;
 
         Canvas.SetLeft(marker, markerX - marker.Width / 2);
-        Canvas.SetTop(marker, 4);
+        Canvas.SetTop(marker, 2);
         marker.Visibility = Visibility.Visible;
+    }
+
+    private void UpdateTimelineBase()
+    {
+        var width = SegmentRangeCanvas.ActualWidth;
+        if (width <= 0)
+        {
+            return;
+        }
+
+        TimelineBaseLine.Width = width;
+        TimelineTickLine.Width = width;
+        Canvas.SetTop(TimelineBaseLine, 10);
+        Canvas.SetTop(TimelineTickLine, 12);
+    }
+
+    private void UpdatePlaybackProgressMarker()
+    {
+        if (!_isVideoLoaded || VideoPositionSlider.Maximum <= 0 || SegmentRangeCanvas.ActualWidth <= 0)
+        {
+            PlaybackProgressLine.Visibility = Visibility.Collapsed;
+            PlaybackPositionThumb.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var currentX = GetTimelineX(TimeSpan.FromSeconds(VideoPositionSlider.Value));
+        PlaybackProgressLine.Width = Math.Max(0, currentX);
+        Canvas.SetLeft(PlaybackProgressLine, 0);
+        Canvas.SetTop(PlaybackProgressLine, 10);
+        PlaybackProgressLine.Visibility = Visibility.Visible;
+
+        Canvas.SetLeft(PlaybackPositionThumb, currentX - PlaybackPositionThumb.Width / 2);
+        Canvas.SetTop(PlaybackPositionThumb, 2);
+        PlaybackPositionThumb.Visibility = Visibility.Visible;
+    }
+
+    private void UpdateSegmentRangeLine()
+    {
+        if (!_segmentStartTime.HasValue ||
+            !_segmentEndTime.HasValue ||
+            VideoPositionSlider.Maximum <= 0 ||
+            SegmentRangeCanvas.ActualWidth <= 0)
+        {
+            SegmentRangeLine.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var startX = GetTimelineX(_segmentStartTime.Value);
+        var endX = GetTimelineX(_segmentEndTime.Value);
+        if (endX <= startX)
+        {
+            SegmentRangeLine.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        Canvas.SetLeft(SegmentRangeLine, startX);
+        Canvas.SetTop(SegmentRangeLine, 10);
+        SegmentRangeLine.Width = endX - startX;
+        SegmentRangeLine.Visibility = Visibility.Visible;
+    }
+
+    private double GetTimelineX(TimeSpan time)
+    {
+        var markerSeconds = Math.Clamp(time.TotalSeconds, VideoPositionSlider.Minimum, VideoPositionSlider.Maximum);
+        var range = VideoPositionSlider.Maximum - VideoPositionSlider.Minimum;
+        var ratio = range > 0 ? (markerSeconds - VideoPositionSlider.Minimum) / range : 0;
+        return ratio * SegmentRangeCanvas.ActualWidth;
     }
 
     private void SeekCapture(TimeSpan position)

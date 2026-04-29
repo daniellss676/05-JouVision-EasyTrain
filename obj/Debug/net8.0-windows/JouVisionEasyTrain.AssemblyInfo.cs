@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("JouVisionEasyTrain")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+829ec548a613fb67cc0c4b3e565b74ac555716ca")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cb862560e6800979e037ab07b82d0070b79cc16d")]
 [assembly: System.Reflection.AssemblyProductAttribute("JouVisionEasyTrain")]
 [assembly: System.Reflection.AssemblyTitleAttribute("JouVisionEasyTrain")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
