@@ -1,22 +1,37 @@
 using JouVisionEasyTrain.Services;
 using Microsoft.Win32;
+using OpenCvSharp;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace JouVisionEasyTrain;
 
-public partial class MainWindow : Window
+public partial class MainWindow : System.Windows.Window
 {
     private CancellationTokenSource? _cancellationTokenSource;
     private string? _lastOutputFolder;
     private double? _sourceFramesPerSecond;
+    private readonly DispatcherTimer _playbackTimer;
+    private VideoCapture? _playbackCapture;
+    private double _playbackFramesPerSecond = 30;
+    private TimeSpan _playbackDuration = TimeSpan.Zero;
+    private bool _isPlaybackSeeking;
+    private bool _isVideoLoaded;
+    private bool _isVideoPlaying;
 
     public MainWindow()
     {
         InitializeComponent();
+
+        _playbackTimer = new DispatcherTimer();
+        _playbackTimer.Tick += PlaybackTimer_Tick;
     }
 
     private void SelectVideoButton_Click(object sender, RoutedEventArgs e)
@@ -34,6 +49,7 @@ public partial class MainWindow : Window
         }
 
         VideoPathTextBox.Text = dialog.FileName;
+        LoadVideoForPlayback(dialog.FileName);
         OutputFolderTextBox.Clear();
         _lastOutputFolder = null;
         OpenOutputButton.IsEnabled = false;
@@ -224,7 +240,276 @@ public partial class MainWindow : Window
         OutputFolderTextBox.IsEnabled = !isRunning;
         FrameRateTextBox.IsEnabled = !isRunning;
         ImageFormatComboBox.IsEnabled = !isRunning;
+        SetPlaybackControlsEnabled(!isRunning && _isVideoLoaded);
 
         StartButton.Content = isRunning ? "生成中..." : "开始生成";
+    }
+
+    private void LoadVideoForPlayback(string videoPath)
+    {
+        _playbackTimer.Stop();
+        _isVideoPlaying = false;
+        _isPlaybackSeeking = false;
+        _isVideoLoaded = false;
+        _playbackCapture?.Dispose();
+        _playbackCapture = null;
+        VideoPreviewImage.Source = null;
+        VideoPositionSlider.Value = 0;
+        VideoPositionSlider.Maximum = 1;
+        VideoTimeTextBlock.Text = "00:00 / 00:00";
+        PlayPauseButton.Content = "播放";
+
+        try
+        {
+            _playbackCapture = new VideoCapture(videoPath);
+            if (!_playbackCapture.IsOpened())
+            {
+                throw new InvalidOperationException("无法打开视频预览。");
+            }
+
+            _playbackFramesPerSecond = _playbackCapture.Fps;
+            if (_playbackFramesPerSecond <= 0 || double.IsNaN(_playbackFramesPerSecond))
+            {
+                _playbackFramesPerSecond = 30;
+            }
+
+            var totalFrames = Math.Max(0, _playbackCapture.FrameCount);
+            _playbackDuration = totalFrames > 0
+                ? TimeSpan.FromSeconds(totalFrames / _playbackFramesPerSecond)
+                : TimeSpan.Zero;
+
+            VideoPositionSlider.Maximum = Math.Max(1, _playbackDuration.TotalSeconds);
+            _playbackTimer.Interval = TimeSpan.FromMilliseconds(Math.Clamp(1000d / _playbackFramesPerSecond, 15, 100));
+            _isVideoLoaded = true;
+            PlayerPlaceholderTextBlock.Visibility = Visibility.Collapsed;
+            RenderCurrentFrame(resetAfterRead: true);
+            VideoTimeTextBlock.Text = $"00:00 / {GetPlaybackDurationText()}";
+            SetPlaybackControlsEnabled(_cancellationTokenSource is null);
+        }
+        catch (Exception ex)
+        {
+            _playbackCapture?.Dispose();
+            _playbackCapture = null;
+            _isVideoLoaded = false;
+            PlayerPlaceholderTextBlock.Text = "视频预览加载失败";
+            PlayerPlaceholderTextBlock.Visibility = Visibility.Visible;
+            SetPlaybackControlsEnabled(false);
+            MessageBox.Show(this, ex.Message, "视频播放失败", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void PlaybackTimer_Tick(object? sender, EventArgs e)
+    {
+        if (!_isVideoLoaded || _playbackCapture is null)
+        {
+            return;
+        }
+
+        using var frame = new Mat();
+        if (!_playbackCapture.Read(frame) || frame.Empty())
+        {
+            StopPlayback(resetPosition: true);
+            return;
+        }
+
+        VideoPreviewImage.Source = CreateBitmapSource(frame);
+        UpdatePlaybackPosition();
+    }
+
+    private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isVideoLoaded)
+        {
+            return;
+        }
+
+        if (_isVideoPlaying)
+        {
+            _playbackTimer.Stop();
+            _isVideoPlaying = false;
+            PlayPauseButton.Content = "播放";
+            UpdatePlaybackPosition();
+            return;
+        }
+
+        _playbackTimer.Start();
+        _isVideoPlaying = true;
+        PlayPauseButton.Content = "暂停";
+    }
+
+    private void StopPlaybackButton_Click(object sender, RoutedEventArgs e)
+    {
+        StopPlayback(resetPosition: true);
+    }
+
+    private void VideoPositionSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _isPlaybackSeeking = true;
+    }
+
+    private void VideoPositionSlider_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        SeekPlayback();
+        _isPlaybackSeeking = false;
+        UpdatePlaybackPosition();
+    }
+
+    private void VideoPositionSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_isPlaybackSeeking)
+        {
+            VideoTimeTextBlock.Text = $"{FormatDuration(TimeSpan.FromSeconds(VideoPositionSlider.Value))} / {GetPlaybackDurationText()}";
+        }
+    }
+
+    private void StopPlayback(bool resetPosition)
+    {
+        _playbackTimer.Stop();
+        _isVideoPlaying = false;
+        PlayPauseButton.Content = "播放";
+
+        if (resetPosition)
+        {
+            SeekCapture(TimeSpan.Zero);
+            RenderCurrentFrame(resetAfterRead: true);
+            VideoPositionSlider.Value = 0;
+            VideoTimeTextBlock.Text = $"00:00 / {GetPlaybackDurationText()}";
+        }
+        else
+        {
+            UpdatePlaybackPosition();
+        }
+    }
+
+    private void SeekPlayback()
+    {
+        if (!_isVideoLoaded || _playbackCapture is null)
+        {
+            return;
+        }
+
+        SeekCapture(TimeSpan.FromSeconds(VideoPositionSlider.Value));
+        RenderCurrentFrame(resetAfterRead: false);
+        UpdatePlaybackPosition();
+    }
+
+    private void UpdatePlaybackPosition()
+    {
+        if (!_isVideoLoaded || _playbackCapture is null || _isPlaybackSeeking)
+        {
+            return;
+        }
+
+        var currentTime = GetCurrentPlaybackTime();
+        VideoPositionSlider.Value = Math.Min(currentTime.TotalSeconds, VideoPositionSlider.Maximum);
+        VideoTimeTextBlock.Text = $"{FormatDuration(currentTime)} / {GetPlaybackDurationText()}";
+    }
+
+    private string GetPlaybackDurationText()
+    {
+        return _playbackDuration > TimeSpan.Zero ? FormatDuration(_playbackDuration) : "00:00";
+    }
+
+    private TimeSpan GetCurrentPlaybackTime()
+    {
+        if (_playbackCapture is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var frameIndex = Math.Max(0, _playbackCapture.PosFrames);
+        return TimeSpan.FromSeconds(frameIndex / _playbackFramesPerSecond);
+    }
+
+    private void SeekCapture(TimeSpan position)
+    {
+        if (_playbackCapture is null)
+        {
+            return;
+        }
+
+        var boundedSeconds = Math.Clamp(position.TotalSeconds, 0, VideoPositionSlider.Maximum);
+        _playbackCapture.Set(VideoCaptureProperties.PosFrames, boundedSeconds * _playbackFramesPerSecond);
+    }
+
+    private void RenderCurrentFrame(bool resetAfterRead)
+    {
+        if (_playbackCapture is null)
+        {
+            return;
+        }
+
+        var frameIndex = _playbackCapture.PosFrames;
+        using var frame = new Mat();
+        if (!_playbackCapture.Read(frame) || frame.Empty())
+        {
+            return;
+        }
+
+        VideoPreviewImage.Source = CreateBitmapSource(frame);
+
+        if (resetAfterRead)
+        {
+            _playbackCapture.Set(VideoCaptureProperties.PosFrames, frameIndex);
+        }
+    }
+
+    private static BitmapSource CreateBitmapSource(Mat frame)
+    {
+        using var convertedFrame = new Mat();
+        Mat displayFrame;
+        PixelFormat pixelFormat;
+
+        if (frame.Channels() == 3)
+        {
+            displayFrame = frame;
+            pixelFormat = PixelFormats.Bgr24;
+        }
+        else if (frame.Channels() == 4)
+        {
+            Cv2.CvtColor(frame, convertedFrame, ColorConversionCodes.BGRA2BGR);
+            displayFrame = convertedFrame;
+            pixelFormat = PixelFormats.Bgr24;
+        }
+        else
+        {
+            Cv2.CvtColor(frame, convertedFrame, ColorConversionCodes.GRAY2BGR);
+            displayFrame = convertedFrame;
+            pixelFormat = PixelFormats.Bgr24;
+        }
+
+        var bitmap = BitmapSource.Create(
+            displayFrame.Width,
+            displayFrame.Height,
+            96,
+            96,
+            pixelFormat,
+            null,
+            displayFrame.Data,
+            (int)(displayFrame.Step() * displayFrame.Height),
+            (int)displayFrame.Step());
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private static string FormatDuration(TimeSpan timeSpan)
+    {
+        return timeSpan.TotalHours >= 1
+            ? timeSpan.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
+            : timeSpan.ToString(@"mm\:ss", CultureInfo.InvariantCulture);
+    }
+
+    private void SetPlaybackControlsEnabled(bool isEnabled)
+    {
+        PlayPauseButton.IsEnabled = isEnabled;
+        StopPlaybackButton.IsEnabled = isEnabled;
+        VideoPositionSlider.IsEnabled = isEnabled;
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _playbackTimer.Stop();
+        _playbackCapture?.Dispose();
+        base.OnClosed(e);
     }
 }

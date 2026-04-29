@@ -35,6 +35,10 @@
             <Setter Property="Padding" Value="18,0" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
+        <Style x:Key="PlayerButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="MinWidth" Value="72" />
+            <Setter Property="Padding" Value="12,0" />
+        </Style>
     </Window.Resources>
 
     <Grid Margin="28">
@@ -68,6 +72,11 @@
                 CornerRadius="8"
                 Padding="24">
             <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*" MinWidth="420" />
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="2*" MinWidth="280" />
+                </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -77,7 +86,7 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="0,0,0,18">
+                <Grid Grid.Row="0" Grid.Column="0" Margin="0,0,0,18">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="120" />
                         <ColumnDefinition Width="*" />
@@ -97,7 +106,7 @@
                             Click="SelectVideoButton_Click" />
                 </Grid>
 
-                <Grid Grid.Row="1" Margin="0,0,0,18">
+                <Grid Grid.Row="1" Grid.Column="0" Margin="0,0,0,18">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="120" />
                         <ColumnDefinition Width="*" />
@@ -117,7 +126,7 @@
                             Click="SelectOutputButton_Click" />
                 </Grid>
 
-                <Grid Grid.Row="2" Margin="0,0,0,14">
+                <Grid Grid.Row="2" Grid.Column="0" Margin="0,0,0,14">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="120" />
                         <ColumnDefinition Width="*" />
@@ -133,7 +142,7 @@
                                Foreground="#64748B" />
                 </Grid>
 
-                <Grid Grid.Row="3" Margin="0,0,0,22">
+                <Grid Grid.Row="3" Grid.Column="0" Margin="0,0,0,22">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="120" />
                         <ColumnDefinition Width="160" />
@@ -168,7 +177,7 @@
                     </ComboBox>
                 </Grid>
 
-                <Grid Grid.Row="4" Margin="0,0,0,22">
+                <Grid Grid.Row="4" Grid.Column="0" Margin="0,0,0,22">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="120" />
                         <ColumnDefinition Width="*" />
@@ -192,6 +201,7 @@
                 </Grid>
 
                 <Border Grid.Row="5"
+                        Grid.Column="0"
                         Background="#F8FAFC"
                         BorderBrush="#E2E8F0"
                         BorderThickness="1"
@@ -201,6 +211,79 @@
                                Text="等待选择视频。"
                                TextWrapping="Wrap"
                                Foreground="#475569" />
+                </Border>
+
+                <Border Grid.Row="0"
+                        Grid.RowSpan="6"
+                        Grid.Column="2"
+                        Background="#0F172A"
+                        BorderBrush="#CBD5E1"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Border Background="Black"
+                                CornerRadius="4"
+                                ClipToBounds="True">
+                            <Grid>
+                                <Image x:Name="VideoPreviewImage"
+                                       Stretch="Uniform"
+                                       SnapsToDevicePixels="True" />
+                                <TextBlock x:Name="PlayerPlaceholderTextBlock"
+                                           Text="选择视频后可在这里预览播放"
+                                           Foreground="#CBD5E1"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           TextAlignment="Center"
+                                           Margin="18" />
+                            </Grid>
+                        </Border>
+
+                        <Slider x:Name="VideoPositionSlider"
+                                Grid.Row="1"
+                                Margin="0,12,0,8"
+                                Minimum="0"
+                                Maximum="1"
+                                IsEnabled="False"
+                                PreviewMouseDown="VideoPositionSlider_PreviewMouseDown"
+                                PreviewMouseUp="VideoPositionSlider_PreviewMouseUp"
+                                ValueChanged="VideoPositionSlider_ValueChanged" />
+
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="PlayPauseButton"
+                                    Grid.Column="0"
+                                    Style="{StaticResource PlayerButtonStyle}"
+                                    Content="播放"
+                                    IsEnabled="False"
+                                    Click="PlayPauseButton_Click" />
+                            <Button x:Name="StopPlaybackButton"
+                                    Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    Style="{StaticResource PlayerButtonStyle}"
+                                    Content="停止"
+                                    IsEnabled="False"
+                                    Click="StopPlaybackButton_Click" />
+                            <TextBlock x:Name="VideoTimeTextBlock"
+                                       Grid.Column="3"
+                                       Text="00:00 / 00:00"
+                                       Foreground="#CBD5E1"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Right" />
+                        </Grid>
+                    </Grid>
                 </Border>
             </Grid>
         </Border>
