@@ -5,9 +5,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="JouVision EasyTrain - 视频拆分"
-        Height="620"
-        Width="1060"
-        MinHeight="520"
+        Height="1100"
+        Width="1000"
+        MinHeight="680"
         MinWidth="760"
         WindowStartupLocation="CenterScreen"
         Icon="LOGO.png"
@@ -36,8 +36,25 @@
             <Setter Property="Cursor" Value="Hand" />
         </Style>
         <Style x:Key="PlayerButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="MinWidth" Value="72" />
-            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Width" Value="42" />
+            <Setter Property="MinWidth" Value="42" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#64748B" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -72,25 +89,21 @@
                 CornerRadius="8"
                 Padding="24">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*" MinWidth="420" />
-                    <ColumnDefinition Width="24" />
-                    <ColumnDefinition Width="2*" MinWidth="280" />
-                </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" MinHeight="230" />
                 </Grid.RowDefinitions>
 
                 <Grid Grid.Row="0" Grid.Column="0" Margin="0,0,0,18">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="120" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="112" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0"
                                Text="视频文件"
@@ -102,6 +115,7 @@
                     <Button x:Name="SelectVideoButton"
                             Grid.Column="2"
                             Margin="12,0,0,0"
+                            Padding="0"
                             Content="选择视频"
                             Click="SelectVideoButton_Click" />
                 </Grid>
@@ -110,7 +124,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="120" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="112" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0"
                                Text="输出文件夹"
@@ -122,6 +136,7 @@
                     <Button x:Name="SelectOutputButton"
                             Grid.Column="2"
                             Margin="12,0,0,0"
+                            Padding="0"
                             Content="选择文件夹"
                             Click="SelectOutputButton_Click" />
                 </Grid>
@@ -213,11 +228,11 @@
                                Foreground="#475569" />
                 </Border>
 
-                <Border Grid.Row="0"
-                        Grid.RowSpan="6"
-                        Grid.Column="2"
-                        Background="#0F172A"
-                        BorderBrush="#CBD5E1"
+                <Border Grid.Row="6"
+                        Grid.Column="0"
+                        Margin="0,18,0,0"
+                        Background="#F8FAFC"
+                        BorderBrush="#E2E8F0"
                         BorderThickness="1"
                         CornerRadius="6"
                         Padding="12">
@@ -226,18 +241,27 @@
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Border Background="Black"
+                        <Border Background="White"
+                                BorderBrush="#E2E8F0"
+                                BorderThickness="1"
                                 CornerRadius="4"
                                 ClipToBounds="True">
                             <Grid>
                                 <Image x:Name="VideoPreviewImage"
                                        Stretch="Uniform"
-                                       SnapsToDevicePixels="True" />
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       SnapsToDevicePixels="True">
+                                    <Image.LayoutTransform>
+                                        <RotateTransform x:Name="VideoPreviewRotateTransform" Angle="0" />
+                                    </Image.LayoutTransform>
+                                </Image>
                                 <TextBlock x:Name="PlayerPlaceholderTextBlock"
                                            Text="选择视频后可在这里预览播放"
-                                           Foreground="#CBD5E1"
+                                           Foreground="#64748B"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
                                            TextWrapping="Wrap"
@@ -246,30 +270,53 @@
                             </Grid>
                         </Border>
 
-                        <Slider x:Name="VideoPositionSlider"
-                                Grid.Row="1"
-                                Margin="0,12,0,8"
-                                Minimum="0"
-                                Maximum="1"
-                                IsEnabled="False"
-                                PreviewMouseDown="VideoPositionSlider_PreviewMouseDown"
-                                PreviewMouseUp="VideoPositionSlider_PreviewMouseUp"
-                                ValueChanged="VideoPositionSlider_ValueChanged" />
+                        <Grid Grid.Row="1" Margin="0,12,0,8">
+                            <Slider x:Name="VideoPositionSlider"
+                                    Minimum="0"
+                                    Maximum="1"
+                                    IsEnabled="False"
+                                    PreviewMouseDown="VideoPositionSlider_PreviewMouseDown"
+                                    PreviewMouseUp="VideoPositionSlider_PreviewMouseUp"
+                                    ValueChanged="VideoPositionSlider_ValueChanged"
+                                    SizeChanged="VideoPositionSlider_SizeChanged" />
+                            <Canvas x:Name="SegmentMarkerCanvas"
+                                    IsHitTestVisible="False"
+                                    Margin="8,0"
+                                    ClipToBounds="False">
+                                <Ellipse x:Name="SegmentStartMarkerDot"
+                                         Visibility="Collapsed"
+                                         Width="10"
+                                         Height="10"
+                                         Fill="#EF4444" />
+                                <Ellipse x:Name="SegmentEndMarkerDot"
+                                         Visibility="Collapsed"
+                                         Width="10"
+                                         Height="10"
+                                         Fill="#EF4444" />
+                            </Canvas>
+                        </Grid>
 
                         <Grid Grid.Row="2">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Button x:Name="PlayPauseButton"
+                            <Button x:Name="RotatePreviewButton"
                                     Grid.Column="0"
+                                    HorizontalAlignment="Left"
+                                    Style="{StaticResource PlayerButtonStyle}"
+                                    Content="&#x27F3;"
+                                    IsEnabled="False"
+                                    Click="RotatePreviewButton_Click" />
+                            <Button x:Name="PlayPauseButton"
+                                    Grid.Column="1"
                                     Style="{StaticResource PlayerButtonStyle}"
                                     Content="播放"
                                     IsEnabled="False"
                                     Click="PlayPauseButton_Click" />
                             <Button x:Name="StopPlaybackButton"
+                                    Visibility="Collapsed"
                                     Grid.Column="1"
                                     Margin="8,0,0,0"
                                     Style="{StaticResource PlayerButtonStyle}"
@@ -277,11 +324,43 @@
                                     IsEnabled="False"
                                     Click="StopPlaybackButton_Click" />
                             <TextBlock x:Name="VideoTimeTextBlock"
-                                       Grid.Column="3"
+                                       Grid.Column="2"
                                        Text="00:00 / 00:00"
-                                       Foreground="#CBD5E1"
+                                       Foreground="#475569"
                                        VerticalAlignment="Center"
                                        HorizontalAlignment="Right" />
+                        </Grid>
+
+                        <Grid Grid.Row="3" Margin="0,10,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Button x:Name="SetSegmentStartButton"
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Content="设置为起点"
+                                    IsEnabled="False"
+                                    Click="SetSegmentStartButton_Click" />
+                            <Button x:Name="SetSegmentEndButton"
+                                    Grid.Row="0"
+                                    Grid.Column="2"
+                                    Content="设置为终点"
+                                    IsEnabled="False"
+                                    Click="SetSegmentEndButton_Click" />
+                            <TextBlock x:Name="SegmentRangeTextBlock"
+                                       Grid.Row="1"
+                                       Grid.ColumnSpan="3"
+                                       Text="导出范围：完整视频"
+                                       Foreground="#475569"
+                                       Margin="0,8,0,0"
+                                       TextWrapping="Wrap" />
                         </Grid>
                     </Grid>
                 </Border>

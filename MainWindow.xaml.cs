@@ -15,6 +15,8 @@ namespace JouVisionEasyTrain;
 
 public partial class MainWindow : System.Windows.Window
 {
+    private const string PlaySymbol = "▶";
+    private const string PauseSymbol = "⏸";
     private CancellationTokenSource? _cancellationTokenSource;
     private string? _lastOutputFolder;
     private double? _sourceFramesPerSecond;
@@ -22,6 +24,9 @@ public partial class MainWindow : System.Windows.Window
     private VideoCapture? _playbackCapture;
     private double _playbackFramesPerSecond = 30;
     private TimeSpan _playbackDuration = TimeSpan.Zero;
+    private TimeSpan? _segmentStartTime;
+    private TimeSpan? _segmentEndTime;
+    private int _previewRotationDegrees;
     private bool _isPlaybackSeeking;
     private bool _isVideoLoaded;
     private bool _isVideoPlaying;
@@ -29,6 +34,7 @@ public partial class MainWindow : System.Windows.Window
     public MainWindow()
     {
         InitializeComponent();
+        PlayPauseButton.Content = PlaySymbol;
 
         _playbackTimer = new DispatcherTimer();
         _playbackTimer.Tick += PlaybackTimer_Tick;
@@ -214,9 +220,24 @@ public partial class MainWindow : System.Windows.Window
             return false;
         }
 
+        if (_segmentStartTime.HasValue &&
+            _segmentEndTime.HasValue &&
+            _segmentEndTime.Value <= _segmentStartTime.Value)
+        {
+            MessageBox.Show(this, "导出终点必须晚于导出起点。", "导出范围无效", MessageBoxButton.OK, MessageBoxImage.Information);
+            return false;
+        }
+
         var imageExtension = ((ComboBoxItem)ImageFormatComboBox.SelectedItem).Content?.ToString() ?? "jpg";
 
-        options = new FrameExtractionOptions(videoPath, outputFolder, targetFps, imageExtension);
+        options = new FrameExtractionOptions(
+            videoPath,
+            outputFolder,
+            targetFps,
+            imageExtension,
+            _previewRotationDegrees,
+            _segmentStartTime,
+            _segmentEndTime);
         return true;
     }
 
@@ -257,7 +278,13 @@ public partial class MainWindow : System.Windows.Window
         VideoPositionSlider.Value = 0;
         VideoPositionSlider.Maximum = 1;
         VideoTimeTextBlock.Text = "00:00 / 00:00";
-        PlayPauseButton.Content = "播放";
+        PlayPauseButton.Content = PlaySymbol;
+        _previewRotationDegrees = 0;
+        ApplyPreviewRotation();
+        _segmentStartTime = null;
+        _segmentEndTime = null;
+        UpdateSegmentRangeText();
+        UpdateSegmentMarkers();
 
         try
         {
@@ -284,6 +311,7 @@ public partial class MainWindow : System.Windows.Window
             PlayerPlaceholderTextBlock.Visibility = Visibility.Collapsed;
             RenderCurrentFrame(resetAfterRead: true);
             VideoTimeTextBlock.Text = $"00:00 / {GetPlaybackDurationText()}";
+            UpdateSegmentMarkers();
             SetPlaybackControlsEnabled(_cancellationTokenSource is null);
         }
         catch (Exception ex)
@@ -327,19 +355,73 @@ public partial class MainWindow : System.Windows.Window
         {
             _playbackTimer.Stop();
             _isVideoPlaying = false;
-            PlayPauseButton.Content = "播放";
+            PlayPauseButton.Content = PlaySymbol;
             UpdatePlaybackPosition();
             return;
         }
 
         _playbackTimer.Start();
         _isVideoPlaying = true;
-        PlayPauseButton.Content = "暂停";
+        PlayPauseButton.Content = PauseSymbol;
+    }
+
+    private void RotatePreviewButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isVideoLoaded)
+        {
+            return;
+        }
+
+        _previewRotationDegrees = (_previewRotationDegrees + 90) % 360;
+        ApplyPreviewRotation();
     }
 
     private void StopPlaybackButton_Click(object sender, RoutedEventArgs e)
     {
         StopPlayback(resetPosition: true);
+    }
+
+    private void SetSegmentStartButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isVideoLoaded)
+        {
+            return;
+        }
+
+        _segmentStartTime = GetSelectedPlaybackTime();
+        _segmentEndTime = null;
+        UpdateSegmentRangeText();
+        UpdateSegmentMarkers();
+    }
+
+    private void SetSegmentEndButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_isVideoLoaded)
+        {
+            return;
+        }
+
+        if (!_segmentStartTime.HasValue)
+        {
+            MessageBox.Show(this, "请先设置导出起点。", "缺少起点", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var selectedTime = GetSelectedPlaybackTime();
+        if (selectedTime <= _segmentStartTime.Value)
+        {
+            MessageBox.Show(this, "导出终点必须晚于导出起点。", "导出范围无效", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        _segmentEndTime = selectedTime;
+        UpdateSegmentRangeText();
+        UpdateSegmentMarkers();
+    }
+
+    private void VideoPositionSlider_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateSegmentMarkers();
     }
 
     private void VideoPositionSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -366,7 +448,7 @@ public partial class MainWindow : System.Windows.Window
     {
         _playbackTimer.Stop();
         _isVideoPlaying = false;
-        PlayPauseButton.Content = "播放";
+        PlayPauseButton.Content = PlaySymbol;
 
         if (resetPosition)
         {
@@ -419,6 +501,42 @@ public partial class MainWindow : System.Windows.Window
 
         var frameIndex = Math.Max(0, _playbackCapture.PosFrames);
         return TimeSpan.FromSeconds(frameIndex / _playbackFramesPerSecond);
+    }
+
+    private TimeSpan GetSelectedPlaybackTime()
+    {
+        return TimeSpan.FromSeconds(Math.Clamp(VideoPositionSlider.Value, 0, VideoPositionSlider.Maximum));
+    }
+
+    private void UpdateSegmentRangeText()
+    {
+        var startText = _segmentStartTime.HasValue ? FormatDuration(_segmentStartTime.Value) : "视频开始";
+        var endText = _segmentEndTime.HasValue ? FormatDuration(_segmentEndTime.Value) : "视频结束";
+        SegmentRangeTextBlock.Text = $"导出范围：{startText} - {endText}";
+    }
+
+    private void UpdateSegmentMarkers()
+    {
+        SetSegmentMarker(SegmentStartMarkerDot, _segmentStartTime);
+        SetSegmentMarker(SegmentEndMarkerDot, _segmentEndTime);
+    }
+
+    private void SetSegmentMarker(FrameworkElement marker, TimeSpan? markerTime)
+    {
+        if (!markerTime.HasValue || VideoPositionSlider.Maximum <= 0 || SegmentMarkerCanvas.ActualWidth <= 0)
+        {
+            marker.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var markerSeconds = Math.Clamp(markerTime.Value.TotalSeconds, VideoPositionSlider.Minimum, VideoPositionSlider.Maximum);
+        var range = VideoPositionSlider.Maximum - VideoPositionSlider.Minimum;
+        var ratio = range > 0 ? (markerSeconds - VideoPositionSlider.Minimum) / range : 0;
+        var markerX = ratio * SegmentMarkerCanvas.ActualWidth;
+
+        Canvas.SetLeft(marker, markerX - marker.Width / 2);
+        Canvas.SetTop(marker, 4);
+        marker.Visibility = Visibility.Visible;
     }
 
     private void SeekCapture(TimeSpan position)
@@ -501,9 +619,16 @@ public partial class MainWindow : System.Windows.Window
 
     private void SetPlaybackControlsEnabled(bool isEnabled)
     {
+        RotatePreviewButton.IsEnabled = isEnabled;
         PlayPauseButton.IsEnabled = isEnabled;
-        StopPlaybackButton.IsEnabled = isEnabled;
         VideoPositionSlider.IsEnabled = isEnabled;
+        SetSegmentStartButton.IsEnabled = isEnabled;
+        SetSegmentEndButton.IsEnabled = isEnabled;
+    }
+
+    private void ApplyPreviewRotation()
+    {
+        VideoPreviewRotateTransform.Angle = _previewRotationDegrees;
     }
 
     protected override void OnClosed(EventArgs e)
