@@ -30,6 +30,16 @@ public partial class MainWindow : System.Windows.Window
     private bool _isPlaybackSeeking;
     private bool _isVideoLoaded;
     private bool _isVideoPlaying;
+    private List<string> _videoPaths = new();
+    private int _currentVideoIndex;
+    private readonly Dictionary<string, VideoState> _perVideoState = new();
+
+    private sealed class VideoState
+    {
+        public TimeSpan? SegmentStart;
+        public TimeSpan? SegmentEnd;
+        public int RotationDegrees;
+    }
 
     public MainWindow()
     {
@@ -46,40 +56,37 @@ public partial class MainWindow : System.Windows.Window
         {
             Title = "选择视频文件",
             Filter = "视频文件|*.mp4;*.avi;*.mov;*.mkv;*.wmv;*.m4v|所有文件|*.*",
-            CheckFileExists = true
+            CheckFileExists = true,
+            Multiselect = true
         };
 
-        if (dialog.ShowDialog(this) != true)
+        if (dialog.ShowDialog(this) != true || dialog.FileNames.Length == 0)
         {
             return;
         }
 
-        VideoPathTextBox.Text = dialog.FileName;
-        LoadVideoForPlayback(dialog.FileName);
-        OutputFolderTextBox.Clear();
+        _videoPaths = new List<string>(dialog.FileNames);
+        _currentVideoIndex = 0;
+        _perVideoState.Clear();
         _lastOutputFolder = null;
         OpenOutputButton.IsEnabled = false;
-        _sourceFramesPerSecond = null;
-        SourceFrameRateTextBlock.Text = "读取中...";
+        SelectOutputButton.IsEnabled = _videoPaths.Count <= 1;
 
-        try
+        if (_videoPaths.Count == 1)
         {
-            var videoInfo = VideoFrameExtractor.ReadVideoInfo(dialog.FileName);
-            _sourceFramesPerSecond = videoInfo.FramesPerSecond;
-            SourceFrameRateTextBlock.Text = $"{videoInfo.FramesPerSecond:0.###} FPS，约 {videoInfo.TotalFrames} 帧";
+            VideoPathTextBox.Text = _videoPaths[0];
+            var videoFolder = Path.GetDirectoryName(_videoPaths[0]);
+            var videoName = Path.GetFileNameWithoutExtension(_videoPaths[0]);
+            OutputFolderTextBox.Text = Path.Combine(videoFolder ?? string.Empty, $"{videoName}_frames");
         }
-        catch (Exception ex)
+        else
         {
-            SourceFrameRateTextBlock.Text = "读取失败";
-            MessageBox.Show(this, ex.Message, "视频信息读取失败", MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
+            VideoPathTextBox.Text = $"已选择 {_videoPaths.Count} 个视频文件";
+            OutputFolderTextBox.Text = "自动：各视频同级目录";
         }
 
-        var videoFolder = Path.GetDirectoryName(dialog.FileName);
-        var videoName = Path.GetFileNameWithoutExtension(dialog.FileName);
-        OutputFolderTextBox.Text = Path.Combine(videoFolder ?? string.Empty, $"{videoName}_frames");
-
-        StatusTextBlock.Text = "已选择视频，可以设置 FPS 后开始生成。";
+        LoadCurrentVideo();
+        UpdateVideoNavigationUI();
     }
 
     private void SelectOutputButton_Click(object sender, RoutedEventArgs e)
@@ -100,7 +107,15 @@ public partial class MainWindow : System.Windows.Window
 
     private async void StartButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryCreateOptions(out var options))
+        if (_videoPaths.Count == 0)
+        {
+            MessageBox.Show(this, "请先选择视频文件。", "缺少视频", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        SaveCurrentVideoState();
+
+        if (!TryValidateSettings(out var targetFps, out var imageExtension))
         {
             return;
         }
@@ -108,21 +123,62 @@ public partial class MainWindow : System.Windows.Window
         SetRunningState(true);
         _cancellationTokenSource = new CancellationTokenSource();
 
-        var progress = new Progress<FrameExtractionProgress>(UpdateProgress);
+        var totalVideos = _videoPaths.Count;
+        var overallSaved = 0;
+        _lastOutputFolder = null;
 
         try
         {
-            _lastOutputFolder = null;
             ProgressBar.Value = 0;
             ProgressTextBlock.Text = "0%";
-            StatusTextBlock.Text = "正在拆分视频，请等待...";
-            var result = await VideoFrameExtractor.ExtractAsync(
-                options,
-                progress,
-                _cancellationTokenSource.Token);
 
-            _lastOutputFolder = result.OutputFolder;
-            StatusTextBlock.Text = $"生成完成，共保存 {result.SavedFrameCount} 张图片。输出目录：{result.OutputFolder}";
+            for (var i = 0; i < totalVideos; i++)
+            {
+                var videoIndex = i;
+                var videoPath = _videoPaths[i];
+
+                StatusTextBlock.Text = totalVideos > 1
+                    ? $"正在处理 ({i + 1}/{totalVideos}): {Path.GetFileName(videoPath)}"
+                    : "正在拆分视频，请等待...";
+
+                var state = _perVideoState.TryGetValue(videoPath, out var s) ? s : new VideoState();
+                var outputFolder = GetOutputFolder(videoPath);
+
+                var videoInfo = VideoFrameExtractor.ReadVideoInfo(videoPath);
+                var effectiveFps = Math.Min(targetFps, videoInfo.FramesPerSecond);
+
+                var options = new FrameExtractionOptions(
+                    videoPath,
+                    outputFolder,
+                    effectiveFps,
+                    imageExtension,
+                    state.RotationDegrees,
+                    state.SegmentStart,
+                    state.SegmentEnd);
+
+                var videoProgress = new Progress<FrameExtractionProgress>(p =>
+                {
+                    var videoShare = 100.0 / totalVideos;
+                    var overallPercent = videoIndex * videoShare + p.Percent / 100.0 * videoShare;
+                    ProgressBar.Value = overallPercent;
+                    ProgressTextBlock.Text = $"{overallPercent:0}%";
+
+                    var totalText = p.TotalFrames > 0 ? p.TotalFrames.ToString(CultureInfo.InvariantCulture) : "未知";
+                    SummaryTextBlock.Text = totalVideos > 1
+                        ? $"({videoIndex + 1}/{totalVideos}) 已读取 {p.CurrentFrame}/{totalText} 帧，已保存 {p.SavedFrameCount} 张"
+                        : $"已读取 {p.CurrentFrame}/{totalText} 帧，已保存 {p.SavedFrameCount} 张图片。";
+                });
+
+                var result = await VideoFrameExtractor.ExtractAsync(
+                    options, videoProgress, _cancellationTokenSource.Token);
+
+                overallSaved += result.SavedFrameCount;
+                _lastOutputFolder = result.OutputFolder;
+            }
+
+            StatusTextBlock.Text = totalVideos > 1
+                ? $"全部完成，共处理 {totalVideos} 个视频，保存 {overallSaved} 张图片。"
+                : $"生成完成，共保存 {overallSaved} 张图片。输出目录：{_lastOutputFolder}";
         }
         catch (OperationCanceledException)
         {
@@ -163,25 +219,31 @@ public partial class MainWindow : System.Windows.Window
         });
     }
 
-    private bool TryCreateOptions(out FrameExtractionOptions options)
+    private bool TryValidateSettings(out double targetFps, out string imageExtension)
     {
-        options = default!;
+        targetFps = 0;
+        imageExtension = "jpg";
 
-        var videoPath = VideoPathTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath))
+        foreach (var path in _videoPaths)
         {
-            MessageBox.Show(this, "请先选择有效的视频文件。", "缺少视频", MessageBoxButton.OK, MessageBoxImage.Information);
-            return false;
+            if (!File.Exists(path))
+            {
+                MessageBox.Show(this, $"视频文件不存在：{path}", "文件不存在", MessageBoxButton.OK, MessageBoxImage.Information);
+                return false;
+            }
         }
 
-        var outputFolder = OutputFolderTextBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(outputFolder))
+        if (_videoPaths.Count == 1)
         {
-            MessageBox.Show(this, "请选择图片输出文件夹。", "缺少输出目录", MessageBoxButton.OK, MessageBoxImage.Information);
-            return false;
+            var outputFolder = OutputFolderTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(outputFolder))
+            {
+                MessageBox.Show(this, "请选择图片输出文件夹。", "缺少输出目录", MessageBoxButton.OK, MessageBoxImage.Information);
+                return false;
+            }
         }
 
-        if (!double.TryParse(FrameRateTextBox.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var targetFps) &&
+        if (!double.TryParse(FrameRateTextBox.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out targetFps) &&
             !double.TryParse(FrameRateTextBox.Text.Trim(), NumberStyles.Float, CultureInfo.CurrentCulture, out targetFps))
         {
             MessageBox.Show(this, "目标帧率必须是数字，例如 1、2、5。", "帧率无效", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -194,60 +256,24 @@ public partial class MainWindow : System.Windows.Window
             return false;
         }
 
-        if (!_sourceFramesPerSecond.HasValue)
-        {
-            try
-            {
-                var videoInfo = VideoFrameExtractor.ReadVideoInfo(videoPath);
-                _sourceFramesPerSecond = videoInfo.FramesPerSecond;
-                SourceFrameRateTextBlock.Text = $"{videoInfo.FramesPerSecond:0.###} FPS，约 {videoInfo.TotalFrames} 帧";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(this, ex.Message, "视频信息读取失败", MessageBoxButton.OK, MessageBoxImage.Error);
-                return false;
-            }
-        }
-
-        if (targetFps > _sourceFramesPerSecond.Value)
-        {
-            MessageBox.Show(
-                this,
-                $"设置帧率不能超过视频原始帧率。当前视频原始帧率为 {_sourceFramesPerSecond.Value:0.###} FPS。",
-                "帧率无效",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return false;
-        }
-
-        if (_segmentStartTime.HasValue &&
-            _segmentEndTime.HasValue &&
-            _segmentEndTime.Value <= _segmentStartTime.Value)
-        {
-            MessageBox.Show(this, "导出终点必须晚于导出起点。", "导出范围无效", MessageBoxButton.OK, MessageBoxImage.Information);
-            return false;
-        }
-
-        var imageExtension = ((ComboBoxItem)ImageFormatComboBox.SelectedItem).Content?.ToString() ?? "jpg";
-
-        options = new FrameExtractionOptions(
-            videoPath,
-            outputFolder,
-            targetFps,
-            imageExtension,
-            _previewRotationDegrees,
-            _segmentStartTime,
-            _segmentEndTime);
+        imageExtension = ((ComboBoxItem)ImageFormatComboBox.SelectedItem).Content?.ToString() ?? "jpg";
         return true;
     }
 
-    private void UpdateProgress(FrameExtractionProgress progress)
+    private string GetOutputFolder(string videoPath)
     {
-        ProgressBar.Value = progress.Percent;
-        ProgressTextBlock.Text = $"{progress.Percent:0}%";
+        if (_videoPaths.Count == 1)
+        {
+            var customFolder = OutputFolderTextBox.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(customFolder))
+            {
+                return customFolder;
+            }
+        }
 
-        var totalText = progress.TotalFrames > 0 ? progress.TotalFrames.ToString(CultureInfo.InvariantCulture) : "未知";
-        SummaryTextBlock.Text = $"已读取 {progress.CurrentFrame}/{totalText} 帧，已保存 {progress.SavedFrameCount} 张图片。";
+        var videoFolder = Path.GetDirectoryName(videoPath);
+        var videoName = Path.GetFileNameWithoutExtension(videoPath);
+        return Path.Combine(videoFolder ?? string.Empty, $"{videoName}_frames");
     }
 
     private void SetRunningState(bool isRunning)
@@ -256,12 +282,16 @@ public partial class MainWindow : System.Windows.Window
         CancelButton.IsEnabled = isRunning;
         OpenOutputButton.IsEnabled = !isRunning && Directory.Exists(_lastOutputFolder ?? OutputFolderTextBox.Text.Trim());
         SelectVideoButton.IsEnabled = !isRunning;
-        SelectOutputButton.IsEnabled = !isRunning;
+        SelectOutputButton.IsEnabled = !isRunning && _videoPaths.Count <= 1;
         VideoPathTextBox.IsEnabled = !isRunning;
         OutputFolderTextBox.IsEnabled = !isRunning;
         FrameRateTextBox.IsEnabled = !isRunning;
         ImageFormatComboBox.IsEnabled = !isRunning;
         SetPlaybackControlsEnabled(!isRunning && _isVideoLoaded);
+
+        var canNavigate = !isRunning && _videoPaths.Count > 1;
+        PrevVideoButton.IsEnabled = canNavigate && _currentVideoIndex > 0;
+        NextVideoButton.IsEnabled = canNavigate && _currentVideoIndex < _videoPaths.Count - 1;
 
         StartButton.Content = isRunning ? "生成中..." : "▶  开始生成";
     }
@@ -706,6 +736,109 @@ public partial class MainWindow : System.Windows.Window
     private void ApplyPreviewRotation()
     {
         VideoPreviewRotateTransform.Angle = _previewRotationDegrees;
+    }
+
+    private void LoadCurrentVideo()
+    {
+        if (_videoPaths.Count == 0 || _currentVideoIndex < 0 || _currentVideoIndex >= _videoPaths.Count)
+        {
+            return;
+        }
+
+        var videoPath = _videoPaths[_currentVideoIndex];
+        _sourceFramesPerSecond = null;
+        SourceFrameRateTextBlock.Text = "读取中...";
+
+        try
+        {
+            var videoInfo = VideoFrameExtractor.ReadVideoInfo(videoPath);
+            _sourceFramesPerSecond = videoInfo.FramesPerSecond;
+            SourceFrameRateTextBlock.Text = $"{videoInfo.FramesPerSecond:0.###} FPS，约 {videoInfo.TotalFrames} 帧";
+        }
+        catch (Exception ex)
+        {
+            SourceFrameRateTextBlock.Text = "读取失败";
+            MessageBox.Show(this, ex.Message, "视频信息读取失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        LoadVideoForPlayback(videoPath);
+        RestoreVideoState(videoPath);
+
+        StatusTextBlock.Text = _videoPaths.Count > 1
+            ? $"已选择 {_videoPaths.Count} 个视频，当前预览：{Path.GetFileName(videoPath)}"
+            : "已选择视频，可以设置 FPS 后开始生成。";
+    }
+
+    private void SaveCurrentVideoState()
+    {
+        if (_videoPaths.Count == 0 || _currentVideoIndex < 0 || _currentVideoIndex >= _videoPaths.Count)
+        {
+            return;
+        }
+
+        _perVideoState[_videoPaths[_currentVideoIndex]] = new VideoState
+        {
+            SegmentStart = _segmentStartTime,
+            SegmentEnd = _segmentEndTime,
+            RotationDegrees = _previewRotationDegrees
+        };
+    }
+
+    private void RestoreVideoState(string videoPath)
+    {
+        if (!_perVideoState.TryGetValue(videoPath, out var state))
+        {
+            return;
+        }
+
+        _segmentStartTime = state.SegmentStart;
+        _segmentEndTime = state.SegmentEnd;
+        _previewRotationDegrees = state.RotationDegrees;
+        ApplyPreviewRotation();
+        UpdateSegmentRangeText();
+        UpdateSegmentMarkers();
+    }
+
+    private void SwitchToVideo(int newIndex)
+    {
+        if (newIndex < 0 || newIndex >= _videoPaths.Count || newIndex == _currentVideoIndex)
+        {
+            return;
+        }
+
+        SaveCurrentVideoState();
+        StopPlayback(resetPosition: true);
+        _currentVideoIndex = newIndex;
+        LoadCurrentVideo();
+        UpdateVideoNavigationUI();
+    }
+
+    private void PrevVideoButton_Click(object sender, RoutedEventArgs e)
+    {
+        SwitchToVideo(_currentVideoIndex - 1);
+    }
+
+    private void NextVideoButton_Click(object sender, RoutedEventArgs e)
+    {
+        SwitchToVideo(_currentVideoIndex + 1);
+    }
+
+    private void UpdateVideoNavigationUI()
+    {
+        if (_videoPaths.Count <= 1)
+        {
+            VideoIndexTextBlock.Text = "帧预览";
+            PrevVideoButton.Visibility = Visibility.Collapsed;
+            NextVideoButton.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        VideoIndexTextBlock.Text = $"{_currentVideoIndex + 1} / {_videoPaths.Count}";
+        PrevVideoButton.Visibility = Visibility.Visible;
+        NextVideoButton.Visibility = Visibility.Visible;
+        PrevVideoButton.IsEnabled = _currentVideoIndex > 0;
+        NextVideoButton.IsEnabled = _currentVideoIndex < _videoPaths.Count - 1;
     }
 
     protected override void OnClosed(EventArgs e)

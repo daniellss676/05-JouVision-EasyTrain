@@ -380,15 +380,33 @@
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center" />
                             </StackPanel>
-                            <Border Grid.Column="1"
-                                    Height="34"
-                                    Padding="14,0"
-                                    Background="#EEF2F8"
-                                    CornerRadius="17">
-                                <TextBlock Text="帧预览"
-                                           Foreground="#475569"
-                                           VerticalAlignment="Center" />
-                            </Border>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="PrevVideoButton"
+                                        Style="{StaticResource IconOnlyButtonStyle}"
+                                        Content="◀"
+                                        Width="30" Height="30" MinWidth="30"
+                                        FontSize="14"
+                                        Visibility="Collapsed"
+                                        IsEnabled="False"
+                                        Click="PrevVideoButton_Click" />
+                                <Border Height="34"
+                                        Padding="14,0"
+                                        Background="#EEF2F8"
+                                        CornerRadius="17">
+                                    <TextBlock x:Name="VideoIndexTextBlock"
+                                               Text="帧预览"
+                                               Foreground="#475569"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <Button x:Name="NextVideoButton"
+                                        Style="{StaticResource IconOnlyButtonStyle}"
+                                        Content="▶"
+                                        Width="30" Height="30" MinWidth="30"
+                                        FontSize="14"
+                                        Visibility="Collapsed"
+                                        IsEnabled="False"
+                                        Click="NextVideoButton_Click" />
+                            </StackPanel>
                         </Grid>
 
                         <Border Grid.Row="2"

@@ -17,9 +17,14 @@ target FPS for training image datasets.
 
 ## Existing Features
 
-- Select a source video file.
+- Select one or multiple source video files (multi-select dialog).
+- When multiple files are selected, each video outputs to its own
+  `videoName_frames` folder alongside the source file.
+- Navigate between selected videos in the preview with ◀ / ▶ buttons.
+- Per-video segment start/end and rotation state is preserved when switching.
+- Batch processing with overall progress across all videos.
 - Read source video FPS and total frame count with OpenCV.
-- Select an output folder.
+- Select an output folder (single-video mode only).
 - Configure target FPS.
 - Select output image format: `jpg` or `png`.
 - Export frames to images using the naming pattern:
