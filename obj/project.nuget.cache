@@ -1,14 +1,14 @@
 {
   "version": 2,
-  "dgSpecHash": "Bew1s38n5VU+VeApOyTaXmaQqQf4/SJXNvLtGggrg86oUEd1qcjVYt6rD5CzMs0mCKf9ygbcTPwo3Ue2Mrif2A==",
+  "dgSpecHash": "ngAjTpaRrH1X56yXL7RMIXZw7l9FueFOnUDuSVQ6XKeBPrIfYLJMOQ0BfFffhJO2FFbTyW7wD7VSNAT5KUO7+g==",
   "success": true,
-  "projectFilePath": "d:\\YOLO\\Jouni\\05-JouVision-EasyTrain\\JouVisionEasyTrain.csproj",
+  "projectFilePath": "D:\\YOLO\\Jouni\\05-JouVision-EasyTrain\\JouVisionEasyTrain.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\刘少松\\.nuget\\packages\\opencvsharp4\\4.10.0.20240616\\opencvsharp4.4.10.0.20240616.nupkg.sha512",
-    "C:\\Users\\刘少松\\.nuget\\packages\\opencvsharp4.runtime.win\\4.10.0.20240616\\opencvsharp4.runtime.win.4.10.0.20240616.nupkg.sha512",
-    "C:\\Users\\刘少松\\.nuget\\packages\\opencvsharp4.windows\\4.10.0.20240616\\opencvsharp4.windows.4.10.0.20240616.nupkg.sha512",
-    "C:\\Users\\刘少松\\.nuget\\packages\\system.memory\\4.5.5\\system.memory.4.5.5.nupkg.sha512",
-    "C:\\Users\\刘少松\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\6.0.0\\system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512"
+    "C:\\Users\\Admin\\.nuget\\packages\\opencvsharp4\\4.10.0.20240616\\opencvsharp4.4.10.0.20240616.nupkg.sha512",
+    "C:\\Users\\Admin\\.nuget\\packages\\opencvsharp4.runtime.win\\4.10.0.20240616\\opencvsharp4.runtime.win.4.10.0.20240616.nupkg.sha512",
+    "C:\\Users\\Admin\\.nuget\\packages\\opencvsharp4.windows\\4.10.0.20240616\\opencvsharp4.windows.4.10.0.20240616.nupkg.sha512",
+    "C:\\Users\\Admin\\.nuget\\packages\\system.memory\\4.5.5\\system.memory.4.5.5.nupkg.sha512",
+    "C:\\Users\\Admin\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\6.0.0\\system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512"
   ],
   "logs": []
 }

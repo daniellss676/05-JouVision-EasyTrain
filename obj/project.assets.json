@@ -182,7 +182,7 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\刘少松\\.nuget\\packages\\": {},
+    "C:\\Users\\Admin\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
@@ -191,14 +191,14 @@
       "projectUniqueName": "D:\\YOLO\\Jouni\\05-JouVision-EasyTrain\\JouVisionEasyTrain.csproj",
       "projectName": "JouVisionEasyTrain",
       "projectPath": "D:\\YOLO\\Jouni\\05-JouVision-EasyTrain\\JouVisionEasyTrain.csproj",
-      "packagesPath": "C:\\Users\\刘少松\\.nuget\\packages\\",
+      "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
       "outputPath": "D:\\YOLO\\Jouni\\05-JouVision-EasyTrain\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\刘少松\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\Admin\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
